@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# Inicializa o Conda no shell
+source ~/miniconda3/etc/profile.d/conda.sh
+
+# Ativa o ambiente Conda
+conda activate slpred_env
+
+# Diretorio onde estao os arquivos .fasta
+cd /home/double3/Doutorado_Bernardo/Identificacao_de_proteinas_de_membrana/SLPred/input_files/fasta_files/
+
+# Arquivo temporario para armazenar os comandos
+temp_file=$(mktemp)
+
+# Diretorio onde estao os arquivos de previsoes ja geradas
+predictions_dir="/home/double3/Doutorado_Bernardo/Identificacao_de_proteinas_de_membrana/SLPred/predictions/"
+
+# Loop pelos arquivos .fasta
+for file in *.fasta
+do
+    # Removendo a extensao .fasta do nome do arquivo
+    name=${file%.fasta}
+
+    # Extrai o penultimo numero antes do ponto
+    if [[ $name =~ ([0-9])\.[0-9]+$ ]]; then
+        second_last_number="${BASH_REMATCH[1]}"
+
+        # Verifica se o numero penultimo esta no intervalo de 0
+        if [[ $second_last_number -ge 0 && $second_last_number -le 0 ]]; then
+            # Verificar se o arquivo de previsoes ja foi gerado
+            prediction_file="$predictions_dir/${name}_predictions.csv"
+            if [[ -f "$prediction_file" ]]; then
+                echo "Arquivo de previsoes para $name ja existe. Pulando..."
+                continue  # Pular este arquivo se ja existe um arquivo de previsoes
+            fi
+
+            # Se nao existir o arquivo de previsoes, adiciona o comando ao arquivo temporario
+            cd /home/double3/Doutorado_Bernardo/Identificacao_de_proteinas_de_membrana/SLPred/
+            echo "python /home/double3/Doutorado_Bernardo/Identificacao_de_proteinas_de_membrana/SLPred/run_SLPred.py --file $name" >> "$temp_file"
+        else
+            echo "Arquivo $name possui o penultimo numero $second_last_number fora do intervalo (0). Pulando..."
+        fi
+    else
+        echo "Nao foi possivel extrair o penultimo numero do arquivo $name. Pulando..."
+    fi
+done
+
+# Executar os comandos com parallel lendo a partir do arquivo temporario
+parallel -j 24 < "$temp_file"
+
+# Remover o arquivo temporario
+rm "$temp_file"
